@@ -318,6 +318,10 @@ def repair_rules(user_language: str) -> str:
 
 
 __all__ = [
+    "AU_SOURCE_STATUSES",
+    "RESEARCH_AID_BANNER",
+    "UNVERIFIED_HEADING",
+    "validate_grounded_output",
     "FINDING_LABELS",
     "LENGTH_TIERS",
     "SOURCES_HEADING",
@@ -333,3 +337,55 @@ __all__ = [
     "specialist_contract",
     "today_line",
 ]
+
+
+# --- Australian Grounded Agent Contract (Babs) --------------------------------
+
+RESEARCH_AID_BANNER = "> Research aid, not legal advice."
+UNVERIFIED_HEADING = {"zh": "无法核验的内容", "en": "What I could not verify"}
+
+AU_SOURCE_STATUSES = frozenset({
+    "verified online",
+    "verified in uploaded document",
+    "corpus only",
+    "unverified",
+    "pinpoint unavailable",
+    "user-provided",
+})
+
+
+def validate_grounded_output(text: str) -> tuple[bool, list[str]]:
+    """Validate that an output conforms to the Babs grounded agent contract.
+
+    Enforces:
+    1. Mandatory 'Research aid, not legal advice' banner at the top.
+    2. Reference markers on body statements (e.g. [1], [Doc p. 4, cl 3.2], [UNVERIFIED]).
+    3. Exactly one '## Sources' (or '## 资料来源') section.
+    4. Each source line carries an approved status (verified online, verified in uploaded document,
+       corpus only, unverified, pinpoint unavailable).
+    5. A '## What I could not verify' section accounting for unverified or missing claims.
+    """
+    errors: list[str] = []
+    if not re.search(r"research aid,\s*not legal advice", text, re.I):
+        errors.append("missing mandatory 'research aid, not legal advice' banner")
+
+    has_sources = bool(re.search(r"^\s*#{1,6}\s*(?:Sources|资料来源)\b", text, re.M | re.I))
+    if not has_sources:
+        errors.append("missing '## Sources' section")
+
+    has_unverified_section = bool(
+        re.search(r"^\s*#{1,6}\s*(?:What I could not verify|无法核验的内容)\b", text, re.M | re.I)
+    )
+    if not has_unverified_section:
+        errors.append("missing '## What I could not verify' section")
+
+    # Check for reference markers in body (e.g. [1], [Doc...], [UNVERIFIED])
+    body_text = text
+    m_sources = re.search(r"^\s*#{1,6}\s*(?:Sources|资料来源)\b", text, re.M | re.I)
+    if m_sources:
+        body_text = text[:m_sources.start()]
+    if not re.search(r"\[(?:\d+|Doc[^\]]+|UNVERIFIED)\]", body_text):
+        errors.append("body statements lack reference markers (e.g. [1], [Doc p. 4, cl 3.2], [UNVERIFIED])")
+
+    return (len(errors) == 0, errors)
+

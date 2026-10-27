@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
-from .answer_contract import SOURCES_HEADING, STATUS
+from .answer_contract import SOURCES_HEADING, STATUS, validate_grounded_output
 
 _URL_RE = re.compile(r"https?://[^\s<>()\"'\]]+[^\s<>()\"'\].,;:!?。，；：！？）]")
 # A markdown link: [label](target). Targets may be URLs or local paths — or
@@ -37,7 +37,16 @@ _ITEM_RE = re.compile(r"^(\s*(?:\d+[.)、]|[-*•])\s+)(.+)$")
 _STATUS_SPLIT_RE = re.compile(r"^(.*[^\s—–])\s*(?:[—–]+|\s-{1,2}\s)\s*(\S.*)$")
 _LEADING_SEP_RE = re.compile(r"^(?:[—–]+|-{1,2}(?=\s))\s*(\S.*)$")
 _LEADING_LINK_RE = re.compile(r"^\[([^\]\n]+)\]\(([^)\s]+)\)")
-_KNOWN_STATUS = tuple(word for words in STATUS.values() for word in words.values())
+_KNOWN_STATUS = tuple(word for words in STATUS.values() for word in words.values()) + (
+    "verified in uploaded document",
+    "corpus only",
+    "已在上传文档核验",
+    "仅语料库",
+)
+_UNVERIFIED_HEADING_RE = re.compile(
+    r"^\s*#{1,6}\s*(?:What I could not verify|无法核验的内容)\b",
+    re.IGNORECASE,
+)
 _SOURCES_HEADING_RE = re.compile(
     r"^\s*#{1,6}\s*(?:" + "|".join(map(re.escape, SOURCES_HEADING.values())) + r"|资料来源与核验|Sources\s*&\s*Verification)\b",
     re.IGNORECASE,
@@ -150,7 +159,7 @@ class AnswerLinter:
         if _SOURCES_HEADING_RE.match(line):
             self.counts.sources_sections += 1
             self._in_sources = True
-        elif _HEADING_RE.match(line):
+        elif _UNVERIFIED_HEADING_RE.match(line) or _HEADING_RE.match(line):
             self._in_sources = False
         if not self._in_sources:
             # Each sources line is its own source: two of them citing one page
@@ -254,4 +263,4 @@ def lint_answer(text: str, language: str = "en") -> tuple[str, LintCounts]:
     return linter.lint(text), linter.counts
 
 
-__all__ = ["AnswerLinter", "LintCounts", "lint_answer", "resolve_local_link", "strip_tracking"]
+__all__ = ["AnswerLinter", "validate_grounded_output", "LintCounts", "lint_answer", "resolve_local_link", "strip_tracking"]
