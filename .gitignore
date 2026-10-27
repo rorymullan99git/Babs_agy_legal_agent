@@ -13,6 +13,7 @@ state/
 *.sqlite3
 
 # --- Build / dependency output ---
+.venv/
 node_modules/
 legal_helper/webui_dist/
 dist/
@@ -37,3 +38,4 @@ legal_helper/rag/corpus/*/zh/
 legal_helper/rag/corpus/*/multi/
 legal_helper/rag/corpus/*/documents/
 legal_helper/rag/corpus/*/attachments/
+legal_helper/rag/corpus/*/au/
