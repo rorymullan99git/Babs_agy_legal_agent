@@ -1,0 +1,12 @@
+# Manifest of Australian legal corpus subset (Queensland and Commonwealth).
+# Rule: Corpus hits are leads only. Anything cited must be re-fetched and verified live.
+name: au_legal_corpus_subset
+description: Open Australian Legal Corpus streaming subset for Queensland and Commonwealth law.
+licence: CC BY 4.0
+upstream: https://huggingface.co/datasets/umarbutler/open-australian-legal-corpus
+files:
+  - file: README.md
+    title: Australian Legal Corpus Overview and Verification Rules
+    jurisdiction: AU
+    source_type: guidance
+    status: guidance

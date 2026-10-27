@@ -1,0 +1,7 @@
+name: au_law
+description: Australian legal corpus subset (Queensland and Commonwealth). Corpus hits are leads only; anything cited must be verified live.
+sources:
+  - path: legal_helper/rag/corpus/au
+    glob: ["*.md"]
+  - path: legal_helper/rag/corpus/au/data
+    glob: ["*.txt", "*.md"]
