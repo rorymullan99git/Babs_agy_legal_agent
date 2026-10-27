@@ -14,11 +14,14 @@ from typing import Any, Iterable
 
 from .aviation import faa_title14_search
 from .caac_local import caac_local_fetch, caac_local_search
+from .cth_legislation import cth_legislation_fetch, cth_legislation_search
 from .easa_safety import easa_ad_fetch, easa_ad_search, easa_ear_index
 from .ethiopia import ecaa_fetch, ecaa_index, ethiopia_law_fetch, ethiopia_law_search
 from .eu import eurlex_fetch, eurlex_search
 from .faa_drs import drs_search
+from .hca_judgments import hca_judgment_fetch, hca_judgment_search
 from .prc import flk_npc_fetch, flk_npc_search
+from .qld_caselaw import qld_caselaw_fetch, qld_caselaw_search
 from .qld_legislation import qld_legislation_fetch, qld_legislation_search
 from .us_courts import courtlistener_fetch, courtlistener_search
 from .us_federal import (
@@ -42,6 +45,12 @@ class ConnectorEntry:
 REGISTRY: tuple[ConnectorEntry, ...] = (
     ConnectorEntry("qld_legislation_search", qld_legislation_search, ("AU",)),
     ConnectorEntry("qld_legislation_fetch", qld_legislation_fetch, ("AU",)),
+    ConnectorEntry("qld_caselaw_search", qld_caselaw_search, ("AU",)),
+    ConnectorEntry("qld_caselaw_fetch", qld_caselaw_fetch, ("AU",)),
+    ConnectorEntry("cth_legislation_search", cth_legislation_search, ("AU",)),
+    ConnectorEntry("cth_legislation_fetch", cth_legislation_fetch, ("AU",)),
+    ConnectorEntry("hca_judgment_search", hca_judgment_search, ("AU",)),
+    ConnectorEntry("hca_judgment_fetch", hca_judgment_fetch, ("AU",)),
     ConnectorEntry("ecfr_search", ecfr_search, ("US",)),
     ConnectorEntry("ecfr_fetch", ecfr_fetch, ("US",)),
     ConnectorEntry("federal_register_search", federal_register_search, ("US",)),
@@ -92,6 +101,8 @@ __all__ = [
     "caac_local_search",
     "courtlistener_fetch",
     "courtlistener_search",
+    "cth_legislation_fetch",
+    "cth_legislation_search",
     "drs_search",
     "easa_ad_fetch",
     "easa_ad_search",
@@ -111,6 +122,10 @@ __all__ = [
     "flk_npc_search",
     "govinfo_fetch",
     "govinfo_search",
+    "hca_judgment_fetch",
+    "hca_judgment_search",
+    "qld_caselaw_fetch",
+    "qld_caselaw_search",
     "qld_legislation_fetch",
     "qld_legislation_search",
 ]
