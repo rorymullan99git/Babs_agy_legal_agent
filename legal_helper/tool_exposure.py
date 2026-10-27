@@ -1,15 +1,15 @@
 """Which tools are loaded on every request, and which wait behind tool search.
 
-The author held 56 tools, ~20K tokens of schemas, on every request — a greeting
+The author held 56 tools, ~20K tokens of schemas, on every request - a greeting
 paid for the spreadsheet and slide tools. Following Codex: a small core of
 tools is always loaded (reading, research, methods, packs, the workflow) and
-every capability-side tool — Word / PDF / spreadsheet / slide work, diagrams,
-per-jurisdiction connectors, pack sources — is *deferred*: declared with
+every capability-side tool - Word / PDF / spreadsheet / slide work, diagrams,
+per-jurisdiction connectors, pack sources - is *deferred*: declared with
 `defer_loading`, invisible to the model until the provider's own tool search
 finds it, then called by its real name.
 
 Both providers implement this natively, so the request's `tools` array never
-changes (the cached prefix survives — found schemas are appended to the
+changes (the cached prefix survives - found schemas are appended to the
 conversation, not swapped into the list):
 
 - OpenAI Responses: a `{"type": "tool_search"}` tool, deferred functions
@@ -35,8 +35,8 @@ OPENAI_TOOL_SEARCH = {"type": "tool_search"}
 #: Always loaded: the harness's operational tools only, as in Codex (shell,
 #: patch, plan, ask-user, view-image, web search, tool search). Reading the
 #: user's files, methods, packs, the workflow, project memory, and a
-#: specialist's own skill and audit tools. Functional tools — every search,
-#: connector and calculator, however often used — wait behind tool search.
+#: specialist's own skill and audit tools. Functional tools - every search,
+#: connector and calculator, however often used - wait behind tool search.
 DIRECT_TOOLS = frozenset(
     {
         "read_document",
@@ -66,7 +66,7 @@ DIRECT_TOOLS = frozenset(
     }
 )
 
-#: Deferred tool → the group it is found under. Groups become OpenAI
+#: Deferred tool -> the group it is found under. Groups become OpenAI
 #: namespaces and the "Tools on demand" list in the author prompt.
 _GROUP_OF: dict[str, str] = {
     **dict.fromkeys(
@@ -93,6 +93,10 @@ _GROUP_OF: dict[str, str] = {
     "compute_period": "deadlines",
 }
 _PREFIX_GROUPS: tuple[tuple[str, str], ...] = (
+    ("qld_", "au_law"),
+    ("au_", "au_law"),
+    ("cth_", "au_law"),
+    ("hca_", "au_law"),
     ("flk_npc_", "prc_law"),
     ("pkulaw_", "prc_law"),
     ("courtlistener_", "us_law"),
@@ -104,8 +108,9 @@ _PREFIX_GROUPS: tuple[tuple[str, str], ...] = (
 )
 
 GROUP_DESCRIPTIONS: dict[str, str] = {
-    "legal_research": "Legal research: one search across US, EU and PRC official sources, and semantic search of the local legal corpus (statutes, treaties, playbooks, prior memos).",
-    "deadlines": "Deadline and limitation-period calculation (期间计算) on the PRC holiday and 调休 calendar.",
+    "legal_research": "Legal research: one search across Australian, US, EU and PRC official sources, and semantic search of the local legal corpus (statutes, treaties, playbooks, prior memos).",
+    "au_law": "Australian legal sources: Queensland legislation, Queensland Courts and Judgments, Commonwealth legislation, High Court of Australia judgments, and Open Australian Legal Corpus.",
+    "deadlines": "Deadline and limitation-period calculation (期间计算) on the PRC holiday and 调休 calendar, or plain calendar arithmetic.",
     "word": "Word documents: write, inspect, edit text, restructure, tracked-change redlines, compare, render pages.",
     "pdf": "PDFs: write, inspect, extract tables, render pages, merge, split, rotate.",
     "spreadsheet": "Excel workbooks: write, inspect ranges, guarded cell edits, row/column reshapes, sheet copies, diffs, render.",
@@ -114,13 +119,13 @@ GROUP_DESCRIPTIONS: dict[str, str] = {
     "prc_law": "PRC legal sources: national law database search and statute fetch (and PKULaw when connected).",
     "us_law": "US legal sources: CourtListener case law, eCFR, Federal Register, GovInfo.",
     "eu_law": "EU legal sources: EUR-Lex search and document fetch.",
-    "other_law": "Other jurisdictions' legal sources (national law catalogues and texts outside CN/US/EU).",
+    "other_law": "Other jurisdictions' legal sources (national law catalogues and texts outside AU/CN/US/EU).",
 }
 
 
 @lru_cache(maxsize=1)
 def _pack_groups() -> dict[str, str]:
-    """Pack source tool → its pack: the connectors a pack gates, and the pack's
+    """Pack source tool -> its pack: the connectors a pack gates, and the pack's
     own `<pack>_source_search` dispatcher."""
     out: dict[str, str] = {}
     try:
@@ -134,7 +139,7 @@ def _pack_groups() -> dict[str, str]:
                     out.setdefault(entry.name, pack)
         for pack in packs:
             out.setdefault(f"{pack}_source_search", pack)
-    except Exception:  # noqa: BLE001 — grouping is advisory; never break tool assembly
+    except Exception:  # noqa: BLE001 - grouping is advisory; never break tool assembly
         pass
     return out
 
@@ -147,7 +152,7 @@ def pack_group_descriptions() -> dict[str, str]:
 
         for name in available_packs():
             out[name] = (
-                f"{load_pack(name).display_name} pack sources — load the pack with "
+                f"{load_pack(name).display_name} pack sources - load the pack with "
                 "`load_pack` first for its playbook and routing."
             )
     except Exception:  # noqa: BLE001
@@ -179,7 +184,7 @@ def group_for(name: str) -> Optional[str]:
 @lru_cache(maxsize=1)
 def _connector_groups() -> dict[str, str]:
     """Every other registry connector, by its jurisdiction."""
-    by_jurisdiction = {"CN": "prc_law", "US": "us_law", "EU": "eu_law"}
+    by_jurisdiction = {"AU": "au_law", "CN": "prc_law", "US": "us_law", "EU": "eu_law"}
     out: dict[str, str] = {}
     try:
         from .connectors import REGISTRY
@@ -213,7 +218,7 @@ def mark_deferred(tools: Iterable[Any]) -> list[Any]:
     for tool in tools:
         name = tool_name(tool)
         if isinstance(tool, dict) and "type" in tool and tool.get("type") != "function":
-            out.append(tool)  # hosted / server tools (web_search, …)
+            out.append(tool)  # hosted / server tools (web_search, ...)
         elif group_for(name):
             out.append(_with_defer(tool, True))
         else:
@@ -268,8 +273,8 @@ def on_demand_block() -> str:
     return (
         "# Tools on demand\n"
         "Besides the tools you see, these groups are loaded through tool search "
-        "when a request needs them — search with the job's plain words (\"redline "
-        "a Word contract\", \"edit a spreadsheet cell\", \"eCFR\") and call what it "
+        "when a request needs them - search with the job's plain words (\"redline "
+        "a Word contract\", \"edit a spreadsheet cell\", \"Queensland legislation\") and call what it "
         "finds by name:\n" + lines
     )
 

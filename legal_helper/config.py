@@ -30,7 +30,7 @@ OPENAI_HIGH_EFFORT_MODELS = ("gpt-6.1-sol",)
 # re-applies it on every later run, so dropping a model from the tuples above
 # only ever affected new chats. gpt-5.5 kept billing on pre-retirement chats for
 # 18 requests after 2026-09-11 that way. The enforcement rule is the allowlist in
-# ``offered_models_for_provider`` — this map only explains the substitution.
+# ``offered_models_for_provider`` - this map only explains the substitution.
 RETIRED_MODELS: dict[str, str] = {
     "gpt-5.5": "retired 2026-09-11: $5.00/$30.00 against gpt-5.6-terra's $2.00/$12.00 for the same work",
     "gpt-5.6-terra": "retired 2026-09-22: superseded by gpt-6-sol ($2.00/$10.00 against $2.00/$12.00)",
@@ -137,18 +137,20 @@ def _read_dotenv_values(path: Path) -> dict[str, str]:
     return {k: v for k, v in dotenv_values(path).items() if v is not None}
 
 
-JurisdictionCode = Literal["CN", "US", "EU", "UK", "HK", "ET", "ICAO"]
-CitationStyle = Literal["gb_t_7714", "bluebook", "oscola"]
+SUPPORTED_JURISDICTIONS = ("AU", "CN", "US", "EU", "UK", "HK", "ET", "ICAO")
+JurisdictionCode = Literal["AU", "CN", "US", "EU", "UK", "HK", "ET", "ICAO"]
+CitationStyle = Literal["aglc4", "gb_t_7714", "bluebook", "oscola"]
 
 
 class Settings(BaseModel):
     provider: Literal["anthropic", "openai"] = "openai"
 
     # Jurisdiction & domain layer
-    default_jurisdiction: JurisdictionCode = "CN"
-    secondary_jurisdictions: list[JurisdictionCode] = Field(default_factory=lambda: ["US", "EU"])
-    default_language: Literal["zh", "en"] = "zh"
-    citation_style: CitationStyle = "gb_t_7714"
+    default_jurisdiction: JurisdictionCode = "AU"
+    default_subjurisdiction: str = "QLD"
+    secondary_jurisdictions: list[JurisdictionCode] = Field(default_factory=list)
+    default_language: Literal["zh", "en"] = "en"
+    citation_style: CitationStyle = "aglc4"
     active_domain_packs: list[str] = Field(default_factory=list)
 
     anthropic_api_key: Optional[str] = None
@@ -164,7 +166,7 @@ class Settings(BaseModel):
 
     # Tool-loop round limits. 0 means none: a turn runs until the model stops
     # asking for tools. Caps used to sit here (12 / 8 / 8 / 80) and every one of
-    # them traded task completion for cost — the orchestrator stopped a
+    # them traded task completion for cost - the orchestrator stopped a
     # workbook reshape at ~33 calls with the edit half done and no answer
     # written. What grows during a long loop is the tool results already in the
     # transcript, and `turn_compaction` clears the old ones (saved to disk,
@@ -181,20 +183,20 @@ class Settings(BaseModel):
     max_workflow_tasks: int = 3
     # Per-turn within-chat context digest (rolling summary + recent transcript)
     # fed to the author and its specialists. The effective budget is
-    # ``chat_context_window_fraction × model window``, floored at
-    # ``chat_context_token_budget`` — so the digest scales with the model
+    # ``chat_context_window_fraction * model window``, floored at
+    # ``chat_context_token_budget`` - so the digest scales with the model
     # actually serving the turn instead of handing a 1M-window model the same
     # 16K digest as a 200K one.
     chat_context_token_budget: int = 16_000
     chat_context_window_fraction: float = 0.25
     # Compact the chat (fold older turns into the rolling summary) once the
-    # transcript reaches this fraction of the model's context window — early,
+    # transcript reaches this fraction of the model's context window - early,
     # per the Claude Code "compact at ~0.6, not 0.95" guidance.
-    # 0.0 (the default) means: derive from the model tier — see
+    # 0.0 (the default) means: derive from the model tier - see
     # context.compaction_threshold_for. Any positive value pins it.
     chat_compaction_threshold: float = 0.0
     # Output ceiling per turn. 8192 truncated long legal memos mid-analysis
-    # (stop_reason="max_tokens" → the "incomplete chunk" symptom). 32000 gives
+    # (stop_reason="max_tokens" -> the "incomplete chunk" symptom). 32000 gives
     # comprehensive multi-jurisdiction analyses room to finish. Override in
     # config.yaml as needed.
     max_tokens: int = 32000
@@ -208,8 +210,8 @@ class Settings(BaseModel):
 
     enable_web_search: bool = True
     enable_web_fetch: bool = True
-    # Citation audit of the author's answer (the /cite-check skill). Disable to
-    # skip it on every run (faster iteration; the author still cites inline).
+    # Citation audit of the author's answer (the /cite-check skill). Enabled by
+    # default so every substantive legal output undergoes verification.
     enable_cite_check: bool = True
     # Audit a substantive legal answer before the reader sees it, rather than
     # streaming it and labelling the problems afterwards. The answer is
@@ -223,7 +225,7 @@ class Settings(BaseModel):
     max_repair_rounds: int = 1
     # Default answer length. "auto" lets the author size each answer from the
     # request; a chat can pin brief / focused / full. It sets only the
-    # provider's verbosity and one instruction sentence — never an output-token
+    # provider's verbosity and one instruction sentence - never an output-token
     # limit, a tool-round limit or a tool budget.
     answer_length: Literal["auto", "brief", "focused", "full"] = "auto"
     role_profiles: dict[str, dict[str, str]] = Field(
@@ -258,7 +260,7 @@ class Settings(BaseModel):
         """Every model this provider may legitimately serve a turn with.
 
         The high-effort tier, the fast tier, and whatever is pinned in
-        ``config.yaml`` — an explicit pin is by definition the user's selection,
+        ``config.yaml`` - an explicit pin is by definition the user's selection,
         so it must stay valid even when it is not in the tuples above. This is
         the allowlist ``resolve_model_for_provider`` enforces, and the same set
         ``/api/runtime-options`` offers the UI.
@@ -276,8 +278,8 @@ class Settings(BaseModel):
         """``model`` if it is still offered for ``provider``, else the user's default.
 
         Stored selections outlive the policy that created them. Anything no
-        longer offered — a retired model, a model from the other provider in a
-        cross-wired record, a typo — collapses to ``model_for_provider()``, the
+        longer offered - a retired model, a model from the other provider in a
+        cross-wired record, a typo - collapses to ``model_for_provider()``, the
         model the user has actually selected in config.
         """
         selected = provider or self.provider
@@ -331,7 +333,7 @@ def load_settings(*, refresh: bool = False) -> Settings:
     cfg_path = _PROJECT_ROOT / "config.yaml"
     cfg: dict = {}
     if cfg_path.is_file():
-        cfg = yaml.safe_load(cfg_path.read_text()) or {}
+        cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
 
     provider = os.getenv("MODEL_PROVIDER", cfg.get("provider", "openai")).lower()
     if provider not in {"anthropic", "openai"}:
@@ -393,9 +395,6 @@ def load_settings(*, refresh: bool = False) -> Settings:
         enable_web_search=_bool_env("LEGAL_HELPER_ENABLE_WEB_SEARCH", bool(cfg.get("enable_web_search", True))),
         enable_web_fetch=_bool_env("LEGAL_HELPER_ENABLE_WEB_FETCH", bool(cfg.get("enable_web_fetch", True))),
         enable_cite_check=_bool_env("LEGAL_HELPER_ENABLE_CITE_CHECK", bool(cfg.get("enable_cite_check", True))),
-        # These three were declared as fields and documented in config.yaml but
-        # never read from it, so editing the file changed nothing and the values
-        # only happened to match the defaults.
         verify_before_reveal=_bool_env(
             "LEGAL_HELPER_VERIFY_BEFORE_REVEAL", bool(cfg.get("verify_before_reveal", True))
         ),
@@ -404,10 +403,17 @@ def load_settings(*, refresh: bool = False) -> Settings:
         ),
         answer_length=_answer_length_value(cfg.get("answer_length", "auto")),
         role_profiles=_role_profiles_value(cfg.get("role_profiles")),
-        default_jurisdiction=cfg.get("default_jurisdiction", "CN"),
-        secondary_jurisdictions=list(cfg.get("secondary_jurisdictions", ["US", "EU"]) or []),
-        default_language=cfg.get("default_language", "zh"),
-        citation_style=cfg.get("citation_style", "gb_t_7714"),
+        default_jurisdiction=os.getenv(
+            "LEGAL_HELPER_DEFAULT_JURISDICTION", cfg.get("default_jurisdiction", "AU")
+        ),  # type: ignore[arg-type]
+        default_subjurisdiction=os.getenv(
+            "LEGAL_HELPER_DEFAULT_SUBJURISDICTION", cfg.get("default_subjurisdiction", "QLD")
+        ),
+        secondary_jurisdictions=list(cfg.get("secondary_jurisdictions", []) or []),
+        default_language=cfg.get("default_language", "en"),
+        citation_style=os.getenv(
+            "LEGAL_HELPER_CITATION_STYLE", cfg.get("citation_style", "aglc4")
+        ),  # type: ignore[arg-type]
         active_domain_packs=(
             _list_env("LEGAL_HELPER_ACTIVE_DOMAIN_PACKS")
             or list(cfg.get("active_domain_packs", []) or [])

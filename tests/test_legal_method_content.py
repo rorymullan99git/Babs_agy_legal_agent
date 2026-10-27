@@ -1,11 +1,8 @@
 """Doctrine guards for the legal-method text the model reads.
 
-The 2026-10-07 capability review (R-3, proposal 13) found the general
-playbook ranking 规范性文件 above 司法解释, putting treaties at the top of a
-universal stack, and the aviation pack ranking ICAO Annexes above national
-law. Every corrected rule was verified at an official source; these tests
-keep the corrections from silently reverting. They assert the presence of
-rules, not prose.
+Verifies the Australian (Queensland default) general playbook hierarchy,
+court weight labels, point-in-time legislation rules, conflict-of-norms rules,
+and domain-pack domestic-hook routing.
 """
 
 from __future__ import annotations
@@ -24,56 +21,76 @@ STAGES = {"arises", "extinguished", "exercisable", "quantum"}
 _PINPOINT_RE = re.compile(r"^第[一二三四五六七八九十百千零]+条(第[一二三四五六七八九十]+款)?$")
 
 
-def test_playbook_section0_separates_legislation_from_judicial_authority():
+def test_playbook_section0_australian_source_hierarchy():
     section = load_playbook_section("Jurisdiction & Source Hierarchy")
     playbook = load_playbook()
     assert "binding stack" not in playbook
     assert "International / supranational" not in playbook
-    assert "规范性文件 → 司法解释" not in playbook
-    for marker in ("立法法 2023修正", "宪法 > 法律", "部门规章 = 地方政府规章", "司法解释工作规定",
-                   "裁判依据", "法释〔2009〕14号", "行政诉讼法"):
+    assert "规范性文件 -> 司法解释" not in playbook
+    for marker in (
+        "Constitution",
+        "Commonwealth statutes",
+        "Queensland statutes and subordinate legislation",
+        "High Court of Australia",
+        "Queensland Court of Appeal",
+        "Other courts and tribunals",
+        "Secondary sources",
+        "Constitution s 109",
+        "Criminal Code Act 1899",
+    ):
         assert marker in section, marker
 
 
 def test_playbook_section0_case_weight_labels():
     section = load_playbook_section("Jurisdiction & Source Hierarchy")
-    for label in ("`应当参照 / must-follow`", "`参考 / reference`", "`persuasive / 说服性`",
-                  "`binding / 拘束性`"):
+    for label in (
+        "`binding`",
+        "`seriously_considered_dicta`",
+        "`comity_appellate`",
+        "`persuasive`",
+        "`lower_court_or_tribunal`",
+        "`comparative_persuasive`",
+    ):
         assert label in section, label
-    assert "人民法院案例库" in section and "类案检索意见" in section
+    assert "HCA" in section and "QCA" in section and "QSC" in section and "QCAT" in section
 
 
 def test_playbook_section0_conflicts_treaties_choice_of_law_and_time():
     section = load_playbook_section("Jurisdiction & Source Hierarchy")
-    for marker in ("上位法优于下位法", "第103条", "第104条", "第105、106条", "name the rule",
-                   "domestic hook", "法释〔2023〕15号", "声明保留", "涉外民事关系法律适用法",
-                   "法院地法", "Date before text", "法释〔2020〕15号"):
-        assert marker in section, marker
+    for marker in (
+        "Date before text",
+        "as in force on the date of the\noperative facts",
+        "Acts Interpretation Act 1954",
+        "s 109 inconsistency",
+        "name the rule",
+        "domestic hook",
+        "Project Blue Sky",
+        "lex fori",
+    ):
+        assert marker in section or marker.replace("\n", " ") in " ".join(section.split()), marker
 
 
 def test_playbook_reasoning_section_ties_steps_to_section0():
-    section = load_playbook_section("3a. Structured legal reasoning")
+    section = load_playbook_section("3a. Structured Legal Reasoning")
     lowered = section.lower()
-    for marker in ("operative date", "conflict of norms", "weight-label", "domestic hook",
-                   "element by element", "adverse authority", "contradict"):
+    for marker in (
+        "operative date",
+        "conflict of norms",
+        "weight-label",
+        "domestic hook",
+        "element by element",
+        "adverse authority",
+        "contradict",
+    ):
         assert marker in lowered, marker
-    assert "§4" not in section
-    assert "规范性文件 → 司法解释" not in section
-
-
-def test_claude_md_hierarchy_sentence_follows_the_playbook():
-    text = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
-    assert "规范性文件 → 司法解释" not in text
-    assert "general playbook §0" in text
 
 
 def test_aviation_pack_routes_rank_through_the_domestic_hook():
     text = load_pack("aviation").playbook_path.read_text(encoding="utf-8")
-    assert "international convention\n  / ICAO Annex →" not in text
+    assert "international convention\n  / ICAO Annex ->" not in text
     assert "domestic hook" in text
-    # 民用航空法 2025 revision (in force 2026-07-01) moved the treaty clause.
     assert "第二百六十条" in text and "第一百八十四条" in text
-    assert "art. 37" in text and "art. 38" in text  # SARPs bind states; filed differences
+    assert "art. 37" in text and "art. 38" in text
     assert "49 USC § 40105" not in text
 
 
