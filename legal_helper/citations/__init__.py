@@ -8,6 +8,8 @@ Preserves the legacy ``audit_citations`` import surface used by
   ``status`` (``verified`` | ``flagged`` | ``could_not_check``).
 * ``groundedness`` - Mode-2 round-trip primitives (does the source
   actually say what's claimed).
+* ``claim_verifier`` - deterministic verification of atomic claims
+  against retrieved and uploaded evidence.
 * ``provenance`` - provenance-tag taxonomy
   (``[PKULaw]`` / ``[CourtListener]`` / ``[model knowledge - verify]`` / ...).
 * ``report`` - severity-tiered ``verification-report.md`` renderer with
@@ -26,6 +28,14 @@ from .au import (
     court_weight_for,
     extract_au,
     validate_au,
+)
+from .claim_verifier import (
+    AtomicClaim,
+    ClaimVerificationResult,
+    EvidenceSource,
+    VerificationBatchSummary,
+    verify_claim,
+    verify_claims,
 )
 from .extract import Citation, extract_citations
 from .format import (
@@ -72,10 +82,13 @@ __all__ = [
     "AGLC4FormattedStr",
     "AU_JURISDICTION_MAP",
     "Assertion",
+    "AtomicClaim",
     "AuCitation",
     "CANONICAL_AU_JURISDICTIONS",
     "Citation",
+    "ClaimVerificationResult",
     "CoverageStats",
+    "EvidenceSource",
     "FormattedCitation",
     "KNOWN_MNC_COURTS",
     "KNOWN_REPORT_SERIES",
@@ -91,6 +104,7 @@ __all__ = [
     "VERIFY_TAGS",
     "Verdict",
     "ValidationResult",
+    "VerificationBatchSummary",
     "VerificationReport",
     "annotate_sources_with_trust",
     "assign_trust_tiers",
@@ -115,4 +129,6 @@ __all__ = [
     "roundtrip_quote",
     "validate_au",
     "validate_citations",
+    "verify_claim",
+    "verify_claims",
 ]
