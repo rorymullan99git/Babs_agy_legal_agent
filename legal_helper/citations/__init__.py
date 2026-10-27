@@ -3,22 +3,41 @@
 Preserves the legacy ``audit_citations`` import surface used by
 ``workflow.py`` and adds:
 
-* ``extract_citations`` / ``validate_citations`` — eyecite (US) + PRC
-  regex + EU Celex/OJ/Reg/Dir regex with a three-valued ``status``
-  (``verified`` | ``flagged`` | ``could_not_check``).
-* ``groundedness`` — Mode-2 round-trip primitives (does the source
+* ``extract_citations`` / ``validate_citations`` - eyecite (US) + PRC
+  regex + EU Celex/OJ/Reg/Dir regex + AU (AGLC4) with a three-valued
+  ``status`` (``verified`` | ``flagged`` | ``could_not_check``).
+* ``groundedness`` - Mode-2 round-trip primitives (does the source
   actually say what's claimed).
-* ``provenance`` — provenance-tag taxonomy
-  (``[PKULaw]`` / ``[CourtListener]`` / ``[model knowledge — verify]`` / …).
-* ``report`` — severity-tiered ``verification-report.md`` renderer with
+* ``provenance`` - provenance-tag taxonomy
+  (``[PKULaw]`` / ``[CourtListener]`` / ``[model knowledge - verify]`` / ...).
+* ``report`` - severity-tiered ``verification-report.md`` renderer with
   coverage line + do-not-file escalation.
-* ``log`` — append-only ``verification-log.md`` so repeat-verified cites
+* ``log`` - append-only ``verification-log.md`` so repeat-verified cites
   don't get re-checked.
 """
 
 from .audit import audit_citations
+from .au import (
+    AU_JURISDICTION_MAP,
+    CANONICAL_AU_JURISDICTIONS,
+    KNOWN_MNC_COURTS,
+    KNOWN_REPORT_SERIES,
+    AuCitation,
+    court_weight_for,
+    extract_au,
+    validate_au,
+)
 from .extract import Citation, extract_citations
-from .format import format_citation
+from .format import (
+    AGLC4FormattedStr,
+    FormattedCitation,
+    format_aglc4,
+    format_aglc4_case_mnc,
+    format_aglc4_case_reported,
+    format_aglc4_doc_anchor,
+    format_aglc4_legislation,
+    format_citation,
+)
 from .groundedness import (
     Assertion,
     QuotedPhrase,
@@ -50,9 +69,16 @@ from .report import (
 from .validate import Status, ValidationResult, validate_citations
 
 __all__ = [
+    "AGLC4FormattedStr",
+    "AU_JURISDICTION_MAP",
     "Assertion",
+    "AuCitation",
+    "CANONICAL_AU_JURISDICTIONS",
     "Citation",
     "CoverageStats",
+    "FormattedCitation",
+    "KNOWN_MNC_COURTS",
+    "KNOWN_REPORT_SERIES",
     "QuotedPhrase",
     "RETRIEVAL_TAGS",
     "ReportItem",
@@ -69,10 +95,17 @@ __all__ = [
     "annotate_sources_with_trust",
     "assign_trust_tiers",
     "audit_citations",
+    "court_weight_for",
     "extract_assertions",
+    "extract_au",
     "extract_citations",
     "extract_quoted_phrases",
     "find_untagged_citations",
+    "format_aglc4",
+    "format_aglc4_case_mnc",
+    "format_aglc4_case_reported",
+    "format_aglc4_doc_anchor",
+    "format_aglc4_legislation",
     "format_citation",
     "ground_answer",
     "inspect_tag",
@@ -80,5 +113,6 @@ __all__ = [
     "nearest_citation_after",
     "prc_aware_fetch",
     "roundtrip_quote",
+    "validate_au",
     "validate_citations",
 ]

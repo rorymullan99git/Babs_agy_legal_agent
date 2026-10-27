@@ -1,15 +1,16 @@
-"""Unified citation extraction: eyecite (US/EN) + PRC regex (CN)."""
+"""Unified citation extraction: eyecite (US/EN) + PRC regex (CN) + EU + AU (AGLC4)."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
 
+from .au import extract_au
 from .eu import extract_eu
 from .prc import extract_prc
 
 
-Jurisdiction = Literal["US", "CN", "EU", "UK", "UNKNOWN"]
+Jurisdiction = Literal["US", "CN", "EU", "UK", "AU", "UNKNOWN"]
 
 
 @dataclass(frozen=True)
@@ -18,7 +19,7 @@ class Citation:
     jurisdiction: Jurisdiction
     kind: str
     span: tuple[int, int]
-    raw: object | None = None  # original eyecite/PrcCitation object
+    raw: object | None = None  # original eyecite/PrcCitation/AuCitation object
 
 
 def _eyecite_extract(text: str) -> list[Citation]:
@@ -50,6 +51,16 @@ def _eyecite_extract(text: str) -> list[Citation]:
 def extract_citations(text: str) -> list[Citation]:
     """Return all citations found in `text`, sorted by span."""
     out: list[Citation] = []
+    for a in extract_au(text):
+        out.append(
+            Citation(
+                text=a.text,
+                jurisdiction="AU",
+                kind=a.kind,
+                span=a.span,
+                raw=a,
+            )
+        )
     out.extend(_eyecite_extract(text))
     for p in extract_prc(text):
         out.append(
@@ -71,12 +82,12 @@ def extract_citations(text: str) -> list[Citation]:
                 raw=e,
             )
         )
-    out.sort(key=lambda c: c.span[0])
+    out.sort(key=lambda c: (c.span[0], -(c.span[1] - c.span[0])))
     return _dedupe_overlapping(out)
 
 
 def _dedupe_overlapping(cites: list[Citation]) -> list[Citation]:
-    """Drop strictly-contained overlaps (regex picks up sub-patterns of eyecite hits)."""
+    """Drop strictly-contained overlaps (regex picks up sub-patterns of longer hits)."""
     kept: list[Citation] = []
     for c in cites:
         contained = any(

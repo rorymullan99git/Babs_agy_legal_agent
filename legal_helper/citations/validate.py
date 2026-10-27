@@ -1,17 +1,16 @@
-"""Validate citations against reporters-db (US) and structural rules (PRC).
+"""Validate citations against reporters-db (US) and structural rules (PRC, AU).
 
 A validation result carries a three-valued ``status``:
 
-* ``verified``      — checked against a primary-source list and OK.
-* ``flagged``       — checked and failed (unknown reporter, malformed 案号 / 法释).
-* ``could_not_check`` — the check did not actually happen (reporters-db
-                       missing, no underlying eyecite object, source text
-                       not provided). Anthropic's claude-for-legal rule:
-                       *never* return "confirmed" if no primary source was
-                       consulted. A false positive is worse than a "couldn't
-                       check" because it lets a bad cite through silently.
+* ``verified``        - checked against a primary-source list and OK.
+* ``flagged``         - checked and failed (unknown reporter, malformed case/statute cite).
+* ``could_not_check`` - the check did not actually happen (reporters-db
+                        missing, no underlying eyecite object, source text
+                        not provided). Never return "confirmed" if no primary
+                        source was consulted. A false positive is worse than a
+                        "couldn't check" because it lets a bad cite through silently.
 
-``ok`` is preserved as a bool for back-compat — but is only True when
+``ok`` is preserved as a bool for back-compat, and is only True when
 ``status == "verified"``.
 """
 
@@ -20,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from .au import AuCitation, validate_au
 from .extract import Citation
 from .prc import PrcCitation, validate_prc
 
@@ -70,15 +70,15 @@ def _validate_us(citation: Citation) -> ValidationResult:
     cite_type = type(raw).__name__
     if cite_type in _US_ANAPHORIC_TYPES:
         return ValidationResult(
-            citation, "verified", "anaphoric cite — antecedent full cite checked separately"
+            citation, "verified", "anaphoric cite - antecedent full cite checked separately"
         )
-    # Statute / journal / unknown cites have no reporters-db check — there is
+    # Statute / journal / unknown cites have no reporters-db check - there is
     # no offline list to consult, so "verified" would be a false positive.
     if cite_type not in _US_REPORTER_TYPES:
         return ValidationResult(
             citation,
             "could_not_check",
-            f"eyecite {cite_type} — no offline check for statute/journal cites; "
+            f"eyecite {cite_type} - no offline check for statute/journal cites; "
             "round-trip against a primary source (eCFR / GovInfo / CourtListener)",
         )
 
@@ -96,7 +96,7 @@ def _validate_us(citation: Citation) -> ValidationResult:
         return ValidationResult(
             citation,
             "could_not_check",
-            "reporters_db not installed — cannot verify US reporter",
+            "reporters_db not installed - cannot verify US reporter",
         )
 
     if reporter in REPORTERS or reporter.lower() in REPORTERS:
@@ -114,6 +114,16 @@ def _validate_cn(citation: Citation) -> ValidationResult:
     return ValidationResult(citation, status, reason)
 
 
+def _validate_au(citation: Citation) -> ValidationResult:
+    raw = citation.raw
+    if not isinstance(raw, AuCitation):
+        return ValidationResult(
+            citation, "could_not_check", "no underlying AuCitation object to check"
+        )
+    status, reason = validate_au(raw)
+    return ValidationResult(citation, status, reason)
+
+
 def _validate_eu(citation: Citation) -> ValidationResult:
     # Structural EU cites (Celex, OJ, TFEU/TEU article, Reg/Dir) are matched
     # by regex; full authority confirmation requires an EUR-Lex round-trip,
@@ -122,7 +132,7 @@ def _validate_eu(citation: Citation) -> ValidationResult:
     return ValidationResult(
         citation,
         "could_not_check",
-        "EU cite — round-trip against EUR-Lex required for confirmation",
+        "EU cite - round-trip against EUR-Lex required for confirmation",
     )
 
 
@@ -133,6 +143,8 @@ def validate_citations(citations: list[Citation]) -> list[ValidationResult]:
             results.append(_validate_us(c))
         elif c.jurisdiction == "CN":
             results.append(_validate_cn(c))
+        elif c.jurisdiction == "AU":
+            results.append(_validate_au(c))
         elif c.jurisdiction == "EU":
             results.append(_validate_eu(c))
         else:

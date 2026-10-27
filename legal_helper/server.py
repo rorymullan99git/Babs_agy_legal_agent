@@ -70,7 +70,8 @@ async def get_jurisdictions() -> dict:
         "secondary": list(s.secondary_jurisdictions),
         "citation_style": s.citation_style,
         "default_language": s.default_language,
-        "supported": ["CN", "US", "EU", "UK", "HK", "ET", "ICAO"],
+        "default_subjurisdiction": getattr(s, "default_subjurisdiction", "QLD"),
+        "supported": ["AU", "CN", "US", "EU", "UK", "HK", "ET", "ICAO"],
     }
 
 _WEBUI_DIST = Path(__file__).parent / "webui_dist"
