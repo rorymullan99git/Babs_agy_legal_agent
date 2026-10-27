@@ -23,7 +23,7 @@ from .workflow import WorkflowExecutor
 
 # Mirrors the server chat path's recent-message lookback
 # (server.py: `_RECENT_MESSAGE_LOOKBACK`). This is a pathological-load backstop,
-# not the context bound — the digest is bounded by the token budget in
+# not the context bound - the digest is bounded by the token budget in
 # `workflow._build_context_block`, which scales with the serving model's window.
 _RECENT_WINDOW = 400
 
@@ -78,7 +78,7 @@ def _workflow_printer(console: Console):
     """An event sink that prints the multi-agent workflow's lifecycle.
 
     `run_workflow` runs inside the author's tool loop, so its events reach a
-    sink rather than the turn's generator — on the server, the SSE stream.
+    sink rather than the turn's generator - on the server, the SSE stream.
     """
 
     def sink(record: dict) -> None:
@@ -292,7 +292,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     try:
         for name, command in unresolvable_stdio_specs(load_registry()):
             print(f"warning: MCP server {name!r}: command {command!r} does not resolve", flush=True)
-    except Exception as exc:  # noqa: BLE001 — a broken .mcp.json must not stop the server
+    except Exception as exc:  # noqa: BLE001 - a broken .mcp.json must not stop the server
         print(f"warning: could not check MCP commands: {exc}", flush=True)
     uvicorn.run(
         "legal_helper.server:app",
@@ -300,6 +300,82 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         port=args.port,
         reload=args.reload,
     )
+    return 0
+
+
+def _cmd_analyze(args: argparse.Namespace) -> int:
+    """Analyze an uploaded document with deterministic claim verification."""
+    from .documents.upload_parser import parse_upload
+    from .au_analysis import (
+        GroundedSourceItem,
+        StructuredClaim,
+        render_grounded_answer,
+        run_critic_loop,
+    )
+
+    file_path = Path(args.file)
+    if not file_path.exists():
+        print(f"Error: file not found: {file_path}", file=sys.stderr)
+        return 1
+
+    parsed_doc = parse_upload(file_path)
+    ev_source = parsed_doc.to_evidence_source()
+    as_at_date = getattr(args, "date", None)
+    matter_type = getattr(args, "matter_type", "standard") or "standard"
+
+    claims = []
+    for cl in parsed_doc.clauses:
+        quote_sub = f'"{cl.text[:100]}"' if cl.text else ""
+        claims.append(
+            StructuredClaim(
+                claim_id=f"doc_{cl.page_number}_{cl.clause_number}",
+                section="application",
+                text=f"Clause {cl.clause_number} on page {cl.page_number} states {quote_sub}.",
+                evidence_ids=[ev_source.id],
+                pinpoint=f"p. {cl.page_number}, cl {cl.clause_number}",
+            )
+        )
+
+    if not claims:
+        for p in parsed_doc.pages:
+            claims.append(
+                StructuredClaim(
+                    claim_id=f"doc_p_{p.page_number}",
+                    section="application",
+                    text=f"Page {p.page_number} content: {p.text[:200]}",
+                    evidence_ids=[ev_source.id],
+                    pinpoint=f"p. {p.page_number}",
+                )
+            )
+
+    evidence_dict = {ev_source.id: ev_source}
+    audited_claims, rounds_log = run_critic_loop(
+        claims=claims,
+        evidence_store=evidence_dict,
+        relevant_date=as_at_date,
+        max_rounds=3,
+    )
+
+    sources = [
+        GroundedSourceItem(
+            index=1,
+            citation_text=f"Uploaded Document: {file_path.name}",
+            status="verified in uploaded document",
+        )
+    ]
+    unverified_notes = []
+    for c in audited_claims:
+        if c.status == "UNVERIFIED":
+            unverified_notes.extend(c.reasons + c.critic_flags)
+
+    rendered = render_grounded_answer(
+        matter_type=matter_type,
+        claims=audited_claims,
+        sources=sources,
+        what_could_not_be_verified=unverified_notes or None,
+    )
+
+    print(rendered)
     return 0
 
 
@@ -312,12 +388,12 @@ def _cmd_project(args: argparse.Namespace) -> int:
     if action == "list":
         projects = store.list_projects(include_archived=args.all)
         if not projects:
-            console.print("[dim]no projects yet — create one with `project new <name>`[/dim]")
+            console.print("[dim]no projects yet - create one with `project new <name>`[/dim]")
             return 0
         for p in projects:
             packs = f" packs={p.domain_packs}" if p.domain_packs else ""
             juris = f" {p.jurisdiction}" if p.jurisdiction else ""
-            console.print(f"[bold]{p.slug}[/bold]{juris}{packs}  — {p.name}  [dim]({p.status})[/dim]")
+            console.print(f"[bold]{p.slug}[/bold]{juris}{packs}  - {p.name}  [dim]({p.status})[/dim]")
         return 0
 
     if action == "new":
@@ -381,7 +457,7 @@ def _cmd_project(args: argparse.Namespace) -> int:
 def _add_common_overrides(p: argparse.ArgumentParser) -> None:
     p.add_argument(
         "--project",
-        help="Run under a project (slug or id) — injects its brief + memory and "
+        help="Run under a project (slug or id) - injects its brief + memory and "
         "pins its jurisdiction/packs",
     )
     p.add_argument(
@@ -391,7 +467,7 @@ def _add_common_overrides(p: argparse.ArgumentParser) -> None:
     )
     p.add_argument(
         "--jurisdiction",
-        choices=["CN", "US", "EU", "UK", "HK", "ET", "ICAO"],
+        choices=["CN", "US", "EU", "UK", "HK", "ET", "ICAO", "AU"],
         help="Override the default jurisdiction for this run",
     )
 
@@ -409,7 +485,7 @@ def _add_project_parser(sub) -> None:
     new.add_argument("--slug")
     new.add_argument("--brief")
     new.add_argument("--brief-file")
-    new.add_argument("--jurisdiction", choices=["CN", "US", "EU", "UK", "HK", "ET", "ICAO"])
+    new.add_argument("--jurisdiction", choices=["CN", "US", "EU", "UK", "HK", "ET", "ICAO", "AU"])
     new.add_argument("--domain-pack", action="append")
 
     show = psub.add_parser("show", help="Show a project")
@@ -458,6 +534,13 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--reload", action="store_true")
     _add_common_overrides(serve)
     serve.set_defaults(func=_cmd_serve)
+
+    analyze = sub.add_parser("analyze", help="Analyze an uploaded document with deterministic claim verification")
+    analyze.add_argument("--file", required=True, help="Path to PDF, DOCX or text file to analyze")
+    analyze.add_argument("--matter-type", choices=["standard", "fact_heavy"], default="standard")
+    analyze.add_argument("--date", help="Point-in-time date YYYY-MM-DD")
+    _add_common_overrides(analyze)
+    analyze.set_defaults(func=_cmd_analyze)
 
     _add_project_parser(sub)
 

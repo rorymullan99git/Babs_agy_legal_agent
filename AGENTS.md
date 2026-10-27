@@ -1,99 +1,87 @@
-# Operational notes
+# Operational Notes: Babs_agy_legal_agent
 
-These are operator-level notes for running and re-running the agent in
-this repository. Project-level conventions for Claude Code itself live in
-`CLAUDE.md`.
+Operator-level notes for running, testing, and maintaining Babs_agy_legal_agent: a grounded Queensland legal research agent built for law students and practitioners.
 
 ## Environment
 
-- Run **everything** inside the `llm` conda env. Python, Node, and all
-  MCP installs live there.
-- `conda run -n llm <command>` is the convenient form for one-shot
-  invocations:
-  - `conda run -n llm python -m pytest -q tests/`
-  - `conda run -n llm python -m legal_helper serve --port 8010`
-  - `conda run -n llm npm run build`
+- Python 3.12+ virtual environment or conda environment with project dependencies.
+- Windows, macOS, or Linux. On Windows, native certificate validation is handled automatically via `truststore`.
+- Running commands via virtual environment:
+  - `.\.venv\Scripts\python.exe -m pytest -q tests/`
+  - `.\.venv\Scripts\python.exe -m legal_helper analyze --file <path>`
+  - `.\.venv\Scripts\python.exe -m legal_helper serve --port 8010`
 
-## Domain packs
+## Core CLI Commands
 
-- List installed packs: `GET /domains` from the running server, or
-  `python -c "from legal_helper.domains import available_packs; print(available_packs())"`.
-- Pin per run: `--domain-pack aviation` on `run`, `chat`, or `serve`.
-- Pin persistently: set `active_domain_packs: [aviation]` in
-  `config.yaml` or `LEGAL_HELPER_ACTIVE_DOMAIN_PACKS=aviation` in the
-  environment, or pin it on a project.
-- A pinned pack's playbook is in the author's prompt from the start. An
-  unpinned pack is listed by name, and the author loads it with `load_pack`
-  when it judges the request falls in the domain; there is no keyword
-  detection. A `load_pack` call shows up as an `active_domain_packs` event
-  with `loaded` set.
-- Add a new pack: create `legal_helper/domains/<name>/pack.yaml` +
-  `playbook.md` + `overlays/<skill>.md` files. The pack is auto-discovered
-  on next process start.
-
-## MCP servers
-
-`.mcp.json` is the registry. External MCPs are installed into the `llm`
-env (see README); the in-tree `ccar_aviation` MCP starts from
-`python -m legal_helper.mcp.servers.ccar_aviation`. The PKULaw MCP is
-remote HTTP — set `PKULAW_API_TOKEN` in `.env`.
-
-Commands in `.mcp.json` are deliberately bare (`python`, `npx`) and are
-resolved at launch by `registry.resolve_command()` — `python` becomes the
-running interpreter, anything else is looked up on `PATH` then in the conda
-bin dirs (`LEGAL_HELPER_MCP_ENV`, default `llm`). Leave them bare; an
-absolute path pins the file to one machine. To check every configured
-launcher resolves:
-
-```bash
-conda run -n llm python -c \
-  "from legal_helper.mcp.registry import load_registry, unresolvable_stdio_specs; \
-   print(unresolvable_stdio_specs(load_registry()) or 'all stdio commands resolve')"
-```
-
-To smoke an MCP from the command line:
-
-```bash
-conda run -n llm python -m legal_helper.mcp.servers.ccar_aviation
-# (drives stdin/stdout MCP protocol; usually used via the agent runtime)
-```
-
-## RAG ingestion
-
-```bash
-conda run -n llm python -m legal_helper.rag.ingest --collection general --seed
-conda run -n llm python -m legal_helper.rag.ingest --collection aviation --seed
-conda run -n llm python -m legal_helper.rag.ingest --collection user --path /path/to/corpus
-```
-
-First call downloads bge-m3 weights (~2 GB) into the HF cache; subsequent
-calls are local. Qdrant data lives under `state/qdrant/`.
-
-## Background server restart
-
-`conda run -n llm ...` works for foreground commands, but detached
-`nohup conda run ...` can exit silently in this project. To restart the
-production web service in the background:
-
-1. Stop old app processes on ports 8010 / 8011 / 5174.
-2. Rebuild the frontend: `conda run -n llm npm run build`.
-3. Start the backend with the env Python directly. Resolve the interpreter
-   rather than assuming a path — `conda info --base` is the *base* install and
-   is not necessarily the parent of the env (envs created with `conda create
-   --name` under a user prefix live in `~/.conda/envs`, not
-   `$(conda info --base)/envs`), so hardcoding either one breaks on some
-   machines:
-
+1. Document Upload Analysis:
    ```bash
-   PY=$(conda run -n llm python -c 'import sys; print(sys.executable)' | tr -d '\r\n')
-   setsid "$PY" -u -m legal_helper serve \
-       --host 0.0.0.0 --port 8010 </dev/null > logs/server-8010.log 2>&1 &
+   python -m legal_helper analyze --file path/to/document.pdf [--matter-type {standard,fact_heavy}] [--date YYYY-MM-DD]
+   ```
+   Parses uploaded contracts, cases, or notes; extracts pages, clauses, and tables; formulates atomic claims; runs the adversarial critic loop; verifies every statement against source text; and produces a grounded IRAC breakdown.
+
+2. Interactive Legal Chat:
+   ```bash
+   python -m legal_helper chat --jurisdiction AU
    ```
 
-4. Verify:
-   - `ss -ltnp | rg ':8010'`
-   - `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8010/` is `200`;
-     `503` means `legal_helper/webui_dist/` has no build (step 2)
-   - `curl -s -o /tmp/legal_helper_runtime_options.json -w '%{http_code}' http://127.0.0.1:8010/api/runtime-options`
-   - `curl -s http://127.0.0.1:8010/domains | jq`
-   - `curl -s http://127.0.0.1:8010/jurisdictions | jq`
+3. One-Shot Research Task:
+   ```bash
+   python -m legal_helper run --jurisdiction AU --task "Analyze s 23 of the Queensland Criminal Code"
+   ```
+
+4. Web Service:
+   ```bash
+   python -m legal_helper serve --host 0.0.0.0 --port 8010
+   ```
+
+## In-Tree MCP Server
+
+The Australian legal research suite is exposed as an in-tree stdio Model Context Protocol (MCP) server:
+```bash
+python -m legal_helper.mcp.servers.babs_au_legal
+```
+Registered tools:
+- `qld_legislation_search`: Search Queensland legislation via legislation.qld.gov.au
+- `qld_legislation_fetch`: Fetch Queensland statute text by title/slug, section, and point-in-time date
+- `qld_caselaw_fetch`: Fetch Queensland judgments (QCA, QSC, QDC, QCAT) by citation or URL
+- `cth_legislation_fetch`: Fetch Commonwealth legislation via Federal Register of Legislation
+- `hca_judgment_fetch`: Fetch High Court of Australia judgments
+- `verify_claims`: Deterministic verification of claims against evidence with quote roundtripping
+- `analyze_document`: End-to-end document upload parsing and grounded IRAC analysis
+
+Configuration lives in `.mcp.json` under `jurisdictions: ["AU"]`.
+
+## RAG Corpus and Leads
+
+Stream and filter primary law from the Open Australian Legal Corpus:
+```bash
+python scripts/fetch_au_corpus.py --max-records 100 --output data/corpus/au_sample.jsonl
+```
+Corpus records are strictly treated as research leads (`status: corpus only`). Any provision or precedent cited in final analysis must be fetched and verified live.
+
+## Testing Standards
+
+- Default test run is completely offline and uses recorded fixtures:
+  ```bash
+  python -m pytest -q tests/
+  ```
+- Acceptance tests verify:
+  - Fabricated case names and citations are flagged UNVERIFIED.
+  - Provisions not in force on the relevant date are flagged.
+  - Upload anchors to non-existent pages or clauses fail verification.
+  - Fallback-parsed and OCR pages propagate lower-trust warnings.
+  - AGLC4 citation rules format statutes, cases, and document anchors.
+  - Quotes with em dashes or curly quotes round-trip accurately without mutating source text.
+- Live network smoke tests (skipped by default) can be enabled with `LEGAL_HELPER_LIVE=1`:
+  ```bash
+  LEGAL_HELPER_LIVE=1 python -m pytest -q tests/test_qld_legislation_connector.py tests/test_au_connectors.py
+  ```
+
+## Hard Operational Rules
+
+1. Deterministic verification: All claims, quotes, and pinpoints are checked by code in `claim_verifier.py`.
+2. Zero invention: Never hallucinate an authority, citation, quote, or date.
+3. Closed evidence: Final analysis relies solely on text retrieved or uploaded during the session.
+4. Scraping etiquette: Never scrape Jade. No bulk scraping of AustLII. Use official government and court endpoints.
+5. Mandatory banner: Every analysis output must begin with `> Research aid, not legal advice.`
+6. No em dashes: Em dashes are strictly prohibited in code, comments, documentation, and commit messages (exempt only in verbatim source quotes).

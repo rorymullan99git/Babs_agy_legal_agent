@@ -340,10 +340,20 @@ def verify_claim(
 
 def verify_claims(
     claims: Sequence[AtomicClaim | dict[str, Any]],
-    evidence_store: dict[str, EvidenceSource | dict[str, Any]],
+    evidence_store: dict[str, EvidenceSource | dict[str, Any]] | Sequence[EvidenceSource | dict[str, Any]],
     global_relevant_date: Optional[str] = None,
 ) -> VerificationBatchSummary:
     """Batch verify multiple atomic claims deterministically."""
+    if isinstance(evidence_store, (list, tuple)):
+        converted_dict: dict[str, Any] = {}
+        for item in evidence_store:
+            if isinstance(item, EvidenceSource):
+                converted_dict[item.id] = item
+            elif isinstance(item, dict):
+                sid = item.get("id") or item.get("source_id", "")
+                converted_dict[sid] = item
+        evidence_store = converted_dict
+
     results: list[ClaimVerificationResult] = []
     for item in claims:
         if isinstance(item, AtomicClaim):
