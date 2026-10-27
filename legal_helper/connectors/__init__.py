@@ -19,6 +19,7 @@ from .ethiopia import ecaa_fetch, ecaa_index, ethiopia_law_fetch, ethiopia_law_s
 from .eu import eurlex_fetch, eurlex_search
 from .faa_drs import drs_search
 from .prc import flk_npc_fetch, flk_npc_search
+from .qld_legislation import qld_legislation_fetch, qld_legislation_search
 from .us_courts import courtlistener_fetch, courtlistener_search
 from .us_federal import (
     ecfr_fetch,
@@ -39,6 +40,8 @@ class ConnectorEntry:
 
 
 REGISTRY: tuple[ConnectorEntry, ...] = (
+    ConnectorEntry("qld_legislation_search", qld_legislation_search, ("AU",)),
+    ConnectorEntry("qld_legislation_fetch", qld_legislation_fetch, ("AU",)),
     ConnectorEntry("ecfr_search", ecfr_search, ("US",)),
     ConnectorEntry("ecfr_fetch", ecfr_fetch, ("US",)),
     ConnectorEntry("federal_register_search", federal_register_search, ("US",)),
@@ -51,32 +54,31 @@ REGISTRY: tuple[ConnectorEntry, ...] = (
     ConnectorEntry("eurlex_fetch", eurlex_fetch, ("EU",)),
     ConnectorEntry("flk_npc_search", flk_npc_search, ("CN",)),
     ConnectorEntry("flk_npc_fetch", flk_npc_fetch, ("CN",)),
-    ConnectorEntry("ethiopia_law_search", ethiopia_law_search, ("ET",)),
-    ConnectorEntry("ethiopia_law_fetch", ethiopia_law_fetch, ("ET",)),
-    ConnectorEntry("faa_title14_search", faa_title14_search, ("US", "ICAO"), ("aviation",)),
-    ConnectorEntry("caac_local_search", caac_local_search, ("CN", "ICAO"), ("aviation",)),
-    ConnectorEntry("caac_local_fetch", caac_local_fetch, ("CN", "ICAO"), ("aviation",)),
-    ConnectorEntry("drs_search", drs_search, ("US",), ("aviation",)),
+    ConnectorEntry("caac_local_search", caac_local_search, ("CN",), ("aviation",)),
+    ConnectorEntry("caac_local_fetch", caac_local_fetch, ("CN",), ("aviation",)),
     ConnectorEntry("easa_ad_search", easa_ad_search, ("EU",), ("aviation",)),
     ConnectorEntry("easa_ad_fetch", easa_ad_fetch, ("EU",), ("aviation",)),
     ConnectorEntry("easa_ear_index", easa_ear_index, ("EU",), ("aviation",)),
-    ConnectorEntry("ecaa_index", ecaa_index, ("ET", "ICAO"), ("aviation",)),
-    ConnectorEntry("ecaa_fetch", ecaa_fetch, ("ET", "ICAO"), ("aviation",)),
+    ConnectorEntry("faa_title14_search", faa_title14_search, ("US",), ("aviation",)),
+    ConnectorEntry("drs_search", drs_search, ("US",), ("aviation",)),
+    ConnectorEntry("ecaa_index", ecaa_index, ("ET",), ("aviation",)),
+    ConnectorEntry("ecaa_fetch", ecaa_fetch, ("ET",), ("aviation",)),
+    ConnectorEntry("ethiopia_law_search", ethiopia_law_search, ("ET",)),
+    ConnectorEntry("ethiopia_law_fetch", ethiopia_law_fetch, ("ET",)),
 )
 
 
 def filter_for(
-    jurisdictions: Iterable[str],
-    active_packs: Iterable[str],
+    jurisdiction: str,
+    domain_packs: Iterable[str] = (),
 ) -> list[ConnectorEntry]:
-    """Return the connectors visible under the given jurisdictions + packs."""
-    juris = set(jurisdictions)
-    packs = set(active_packs)
+    """Return the connectors that apply to ``jurisdiction`` and the active ``domain_packs``."""
+    packs = frozenset(domain_packs)
     visible: list[ConnectorEntry] = []
     for entry in REGISTRY:
-        if entry.domain_packs and not (set(entry.domain_packs) & packs):
+        if jurisdiction not in entry.jurisdiction:
             continue
-        if juris and not (set(entry.jurisdiction) & juris):
+        if entry.domain_packs and not (packs & set(entry.domain_packs)):
             continue
         visible.append(entry)
     return visible
@@ -109,4 +111,6 @@ __all__ = [
     "flk_npc_search",
     "govinfo_fetch",
     "govinfo_search",
+    "qld_legislation_fetch",
+    "qld_legislation_search",
 ]
